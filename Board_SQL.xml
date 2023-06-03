@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE sqlMap PUBLIC "-//iBATIS.com//DTD SQL Map 2.0//EN" "http://www.ibatis.com/dtd/sql-map-2.dtd">
+
+<sqlMap namespace="BoardSpace" >
+
+	<typeAlias  alias="egovMap" type="egovframework.rte.psl.dataaccess.util.EgovMap"/>
+	<typeAlias  alias="boardVO" type="main.service.BoardVO"/>
+	
+	<insert id="boardDAO.insertNBoard">
+		INSERT INTO nboard(unq, title, pass, name, content, hits, rdate) 
+             VALUES (nboard_seq.nextval
+             , #title#
+             , #pass#
+             , #name#
+             , #content#
+             , 0
+             , sysdate )
+	</insert>
+
+    <select id="boardDAO.selectNBoardList" resultClass="egovMap">
+  
+        SELECT b.* FROM (
+	        SELECT rownum rn, a.* FROM (
+	               SELECT unq, title, pass, name,  hits, to_char(rdate, 'YYYY-MM-DD') rdate 
+	                 FROM nboard
+	                <isNotNull property="searchGubun">
+	                WHERE $searchGubun$ LIKE '%$searchText$%'
+	                </isNotNull>
+	                ORDER BY unq DESC )a )b	       
+	     WHERE rn >= #startIndex# AND rn <![CDATA[<=]]> #endIndex#
+	     
+    </select>
+    
+   	<select id="boardDAO.selectNBoardTotal" resultClass="java.lang.Integer"> 
+	    SELECT count(*) cnt FROM nboard 
+       <isNotNull property="searchGubun">
+         WHERE $searchGubun$ LIKE '%$searchText$%'
+       </isNotNull>
+	</select>
+
+
+	<select id="boardDAO.selectNBoardDetail" resultClass="boardVO">
+	    SELECT unq, title, pass, name, content, hits, to_char(rdate, 'YYYY-MM-DD') rdate  FROM nboard
+	     WHERE unq = #unq#
+	</select>
+
+    <update id="boardDAO.updateNBoardHits">
+        UPDATE nboard  SET hits = hits+1 WHERE unq = #unq#
+    </update>
+    
+    <update id="boardDAO.updateNBoard">
+    	UPDATE nboard 
+    	   SET title   = #title#
+    	     , name    = #name#
+    	     , content = #content#
+    	 WHERE unq     = #unq# 
+    </update>
+
+	<select id="boardDAO.selectNBoardPass" resultClass="java.lang.Integer" >
+		SELECT COUNT(*) FROM nboard 
+		 WHERE unq   = $unq$  
+		   AND pass  = $pass$ 
+	</select>
+	
+	<delete id ="boardDAO.deleteNBoard" >
+		DELETE FROM nboard
+		 WHERE unq  = $unq$
+		   AND pass = $pass$
+	</delete>
+</sqlMap>
