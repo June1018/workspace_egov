@@ -742,10 +742,62 @@ f300_insert_exmqwlog(symqtops_onin_ctx_t  *ctx)
 
     SYS_DBG("req_data ASCII: [%s]", ((req_data_t) REQ_DATA)->indata);
     mqinfo.msglen = SESSION_DATA->req_len + g_head_len;
+    SYS_DBG("reqinfo.msglen: [%d]", reqinfo.msglen);  
+    memcpy(mqinfo.msgbuf, ((req_data_t *)REQ_DATA)->indata, mqinfo.msglen);
+
+    /* ------------------mqinfo_001 세팅 ----------------------------*/
+    memset(&mqmsg_001, 0x00, sizeof(exmqmsg_001_t));
+    memcpy(mqmsg_001.chnl_code, g_chnl_code , LEN_EXMQPARM_CHNL_CODE);
+    memcpy(mqmsg_001.appl_code, g_appl_code , LEN_EXMQPARM_APPL_CODE);
+    memcpy(mqmsg_001.msg_id   , mqinfo.msg_id ,  LEN_EXMQPARM_MSG_ID);
+    memcpy(mqmsg_001.corr_id  , mqinfo.corr_id, LEN_EXMQPARM_CORR_ID);
+    mqmsg_001.mqlen = mqinfo.msglen;
+    memcpy(mqmsg_001.mqmsg   , mqinfo.msgbuf   , mqmsg_001.mqlen);
+    mqmsg_001.io_type = 1;   //0이 get 1이 put
+    memcpy(mqmsg_001.ilog_jrn_no, SESSION->ilog_jrn_no, LEN_EXMQMSG_001_ILOG_JRN_NO);
     
+    /* ------------------MQ 로그 처리    ----------------------------*/
+    memset(&mqmsg_001, 0x00, sizeof(exmqmsg_001_t));
+    mqmsg_001.mqmsg_001 = &mqmsg_001;
 
+    db_rc = mqomsg001(&mqimsg001);
+    if (db_rc == ERR_ERR){
+        EXEC SQL ROLLBACK WORK;
+        ex_syslog(LOG_ERROR, "[APPL_DM] %s f300_insert_exmqwlog: MQMSG001 INSERT ERROR 시스템 담당자 CALL" );
+        return ERR_ERR;
+    }
 
+    SYS_TREF;
 
+    return  ERR_NONE;
+
+}
+static int
+g100_get_tpctx(symqtops_onin_ctx_t  *ctx)
+{
+    int     rc          = ERR_NONE;
+
+    SYS_TRSF;
+ 
+    /* get tmax context to relay svc */
+    if(tpgetctx(&SESSION->ctx) < 0){
+        SYS_HSTERR(SYS_LN, 782900, "tpgetctx failed jrn_no[%s]", SESSION->ilog_jrn_no);
+        return ERR_ERR;        
+    }
+    // 응답필요없는 것 tprelay
+    if (!IS_SYSGWINFO_SVC_REPLAY){
+        sys_tprelay(“EXTRELAY”, &SESSION_DATA->cb, 0, &SESSION_DATA->ctxt);
+        if(rc == ERR_ERR){
+            SYS_HSTERR(SYS_LN, SYS_GENERR, "sys_tprelay failed jrn_no[%s]", SESSION->ilog_jrn_no);
+            return ERR_ERR;            
+        }
+        return GOB_NRM;
+    }
+    SESSION->cd = SESSION_READY_CD;
+
+    SYS_TREF;
+
+    return ERR_NONE;
 }
 /* ---------------------------------------------------------------- */
 static int 
