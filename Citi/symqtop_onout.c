@@ -757,6 +757,75 @@ static int e300_set_commbuff(symqtop_onout_ctx_t    *ctx)
 
     SYS_TRSF;
 
+    /* error code init */
+    sys_err_init();
 
+    /* SYSIOUTQ 값 저장 */
+    req_data = SYSIOUTQ;
+    req_len  = SYSIOUTQ_SIZE;
+
+    /* ------------- */
+    /* SYSGWINFO     */
+    /* ------------- */
+    memset(&sysgwinfo, 0x00, sizeof(sysgwinfo_t));
+    sysgwinfo.sys_type     = SYSGWINFO_SYS_CORE_BANK;
+    sysgwinfo.gw_rspn_send = SYSGWINFO_GW_REPLY_SEND_NO;
+    sysgwinfo.msg_type     = SYSGWINFO_MSG_1200;
+
+    rc = sysocbsi(&SESSION_DATA->cb, IDX_SYSGWINFO, &sysgwinfo, LEN_SYSGWINFO);
+    if (rc == ERR_ERR) {
+        ex_syslog(LOG_ERROR, "[APPL_DM] %s e300_set_commbuff():"
+                             "COMMBUFF ERR(SYSGWINFO) [해결방안] 시스템 담당자 call ",
+                             __FILE__);
+        SYS_HSTERR(SYS_NN, SYS_GENERR, "COMMBUFF SET ERR");
+        return ERR_ERR;
+    }
+
+    as_data = malloc(req_len+1);
+    if (as_data = 0x00){
+        SYS_HSTERR(SYS_NN, SYS_GENERR, "malloc failed. jrn_no[%s]", SESSION->ilog_jrn_no);
+        return ERR_ERR;
+    }
+
+    memset(as_data, 0x00, req_len+1);
+    memset(as_data, 0x20, req_len);
+
+    SESSION_DATA->as_data = as_data;
+
+    as_data->hcmihead = req_data->hcmihead;
+
+    SESSION_DATA->log_flag = 1;
+
+    //as_data->hcmihead = req_data
+    SYS_DBG(" == SYSIOUTQ_SIZE [%d]", SYSIOUTQ_SIZE);
+    /* check data length */
+    data_len = utoa2ln(as_data->hcmihead.data_len, LEN_HCMIHEAD_DATA_LEN);
+    SYS_DBG("as_data->hcmihead.data_len: [%d]", data_len);
+    /*
+    if (as_data != SYSIOUTQ_SIZE - LEN_HCMIHEAD){
+        SYS_HSTERR(SYS_NN, SYS_GENERR, "as_data->hcmihead.data_len[%s]", SESSION->ilog_jrn_no);
+        return ERR_ERR;
+    }
+    */
+    SESSION_DATA->hcmihead = as_data->hcmihead;
+    /* dp 헤더 와 실제데이터 저장 */
+    dp = &as_data->hcmihead;
+
+    memcpy(as_data->indata, req_data->indata, (req_len - LEN_HCMIHEAD));
+    memcpy(&dp[g_head_len],  as_data->indata, (req_len - LEN_HCMIHEAD));
+    utohexdp((char *)dp, 1272);
+
+    /* 거래 파라미터 정보 */
+    memset(&exi0212, 0x00, sizeof(exi0212_t));
+    exi0212.in.func_code = 2;
+
+    exmsg1200 = (exmsg1200_comm_t) &dp[g_head_len];
+    memcpy(exi0212.in.appl_code, exmsg1200->appl_code, LEN_APPL_CODE);
+    memcpy(exi0212.in.tx_code  , exmsg1200->tx_code  , LEN_TX_CODE  );
+
+    /* -------------------------------------------------------- */
+    SYS_DBG("e300_set_commbuff appl_code = [%s]", exi0212.in.appl_code);
+    SYS_DBG("e300_set_commbuff tx_code   = [%s]", exi0212.in.tx_code  );
+    /* ------------------------------------------------------- */
 
 }
